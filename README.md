@@ -3,6 +3,7 @@ Google Data Analytics Professional Certificate - Capstone Project
 [Dashboard Link](https://public.tableau.com/app/profile/bharanidharan.m.s/viz/GoogleDataAnalyticsCapstoneProject-Cyclistic_17045484917410/FinalDashboard)
 
 **CYCLISTIC**
+
 ➔	Cyclistic, a bike-share company in Chicago, launched in 2016.
 ➔	Has 5824 bicycles (geotracked), 692 stations.
 ◆	Only 8% of riders use assistive options.
@@ -34,7 +35,7 @@ To create a report with the following deliverables:
 6. Your top three recommendations based on your analysis (ACT)
 
 
-**ASK **
+**ASK**
 
 Guiding questions -
 ● What is the problem you are trying to solve?
@@ -193,7 +194,7 @@ Key tasks -
 Deliverable - “Supporting visualizations and key findings.”
 
 
- 						**ACT**
+ **ACT**
 
 Guiding questions - 
 ● What is your conclusion based on your analysis?
