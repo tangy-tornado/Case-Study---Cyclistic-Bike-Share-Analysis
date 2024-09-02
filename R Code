@@ -1,0 +1,112 @@
+#install and load packages
+
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("hms")
+install.packages("data.table")
+library(tidyverse)
+library(lubridate)
+library(hms)
+library(data.table)
+
+# load datasets
+
+→ Using import dataset option
+td_12_22-132553 obs. of 9 variables
+td_01_23-144556 obs. of 9 variables
+td_02_23-146091 obs. of 9 variables
+td_03_23-194544 obs. of 9 variables
+td_04_23-314920 obs. of 9 variables
+td_05_23-452892 obs. of 9 variables
+td_06_23-524723 obs. of 9 variables
+td_07_23-563100 obs. of 9 variables
+td_08_23-574532 obs. of 9 variables
+td_09_23-498174 obs. of 9 variables
+td_10_23-396990 obs. of 9 variables
+td_11_23-270192 obs. of 9 variables ←
+
+
+
+
+# Merge all data frames into 4qtr and into one
+
+q_1 <- rbind(td_12_22, td_01_23, td_02_23, td_03_23)
+remove(td_01_23, td_02_23, td_03_23, td_12_22)
+q_2 <- rbind(td_04_23,td_05_23, td_06_23)
+remove(td_04_23,td_05_23, td_06_23)
+q_3 <- rbind(td_07_23, td_08_23)
+remove(td_07_23, td_08_23)             
+q_4 <- rbind(td_09_23, td_10_23, td_11_23)
+remove(td_09_23, td_10_23, td_11_23)
+
+cyclistic_df <- rbind(q_1, q_2, q_3, q_4)
+remove(q_1, q_2, q_3, q_4)
+
+→ cyclistic_df has 4213267 rows & 9 cols ←
+
+#create a new data frame for new columns
+all_trips <- cyclistic_df
+
+#calculate ride_duration in mins
+
+all_trips$ride_duration <- difftime(cyclistic_df$ended_at, cyclistic_df$started_at, units = "mins")
+all_trips$ride_duration <- round(all_trips$ride_duration, digits = 2)
+
+#create new columns for date, day, year, time, time_hms, hour
+
+all_trips <- all_trips %>%
+  mutate(
+    date = as.Date(started_at),                
+    day = format(started_at, "%d"),            
+    year = format(started_at, "%Y"),           
+    time = format(started_at, "%H:%M:%S"),     
+    time_hms = as_hms(started_at),        #hms is used to represent time in seconds format.
+    hour = hour(time_hms)                       
+  )
+
+
+#create a new column for seasons
+
+all_trips <- all_trips %>%
+  mutate(
+    season = case_when(
+      month %in% c("March", "April", "May") ~ "Spring",
+      month %in% c("June", "July", "August") ~ "Summer",
+      month %in% c("September", "October", "November") ~ "Autumn",
+      month %in% c("December", "January", "February") ~ "Winter"
+    )
+  )
+
+#create columns for time_of_day
+
+all_trips <- all_trips %>%
+  mutate(
+    time_of_day = case_when(
+      hour %in% c("1", "2", "3") ~ "Late Night",
+      hour %in% c("4", "5", "6") ~ "Early Morning",
+      hour %in% c("7", "8", "9") ~ "Morning",
+      hour %in% c("10", "11") ~ "Late Morning",
+      hour %in% c("12", "13", "14") ~ "Afternoon",
+      hour %in% c("15", "16", "17") ~ "Late Afternoon",
+      hour %in% c("18", "19", "20", "21") ~ "Evening",
+      hour %in% c("22", "23", "0") ~ "Night"
+    ) )
+
+# Remove rows with NA values
+all_trips <- na.omit(all_trips) #-131rows
+
+# Remove duplicate rows
+all_trips <- distinct(all_trips) #no duplicates
+
+# Remove rows where ride_length is less than or equal to 0
+all_trips <- all_trips[!(all_trips$ride_duration <= 0), ] #none
+
+# Create a new dataframe for Tableau
+cyclistic_tableau <- all_trips
+
+# Clean the data
+cyclistic_tableau <- cyclistic_tableau %>%  
+  select(-c(start_station_name, end_station_name, time, started_at, ended_at))
+
+#download the file
+fwrite(cyclistic_tableau,"cyclistic_data.csv") #1,048,575 observations & 13 variables.
