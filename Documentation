@@ -1,0 +1,258 @@
+ASK
+
+1.	Stated the business task.
+
+PREPARE 
+
+1.	Downloaded all the available data.
+a.	But decided to use 1 year data (i.e Dec '22 - Nov ’23), since it was recent year data and older data was not relevant and files were to be processed. 
+b.	I used Excel for the initial cleaning process then shifted to R, i did one month at a time.
+c.	Shifted to R for further cleaning and adding columns, I did this after combining all the months data into quarters and then into year.
+
+ PROCESS
+
+Loaded all the months data separately in Excel and started the basic cleaning process.
+
+STEPS -
+1.	Top row - Freeze
+a.	Bold
+2.	Deleted start_stn_id & end_stn_id, which seemed irrelevant to our analysis. Deleted start, end - Lat & lng(4 columns).
+3.	Wanted to remove duplicate values but none were found, add filter to ride_id and remove outliers.
+4.	Sorted whole sheet w.r.t started_at & ctrl+s….
+5.	Select columns > Find & Select > Go to Special > Blanks > OK. 
+a.	Home > Delete > Delete Sheet Rows
+b.	Followed these steps thrice to make sure all data were completely cleaned. 
+6.	Formatted started_at & ended_at columns > format cells > DATE > 3/14/12 13:30.
+7.	Created Day of Week column > =TEXT(C2,”dddd”)
+8.	Created Month Column > =TEXT(C2,”mmmm”)
+
+It’s always better to clean a month's data check compatibility and proceed further.
+
+Loading Data into R -
+
+#install and load packages
+
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("hms")
+install.packages("data.table")
+library(tidyverse)
+library(lubridate)
+library(hms)
+library(data.table)
+
+# load datasets
+
+→ Using import dataset option
+td_12_22-132553 obs. of 9 variables
+td_01_23-144556 obs. of 9 variables
+td_02_23-146091 obs. of 9 variables
+td_03_23-194544 obs. of 9 variables
+td_04_23-314920 obs. of 9 variables
+td_05_23-452892 obs. of 9 variables
+td_06_23-524723 obs. of 9 variables
+td_07_23-563100 obs. of 9 variables
+td_08_23-574532 obs. of 9 variables
+td_09_23-498174 obs. of 9 variables
+td_10_23-396990 obs. of 9 variables
+td_11_23-270192 obs. of 9 variables ←
+
+
+
+
+# Merge all data frames into 4qtr and into one
+
+q_1 <- rbind(td_12_22, td_01_23, td_02_23, td_03_23)
+remove(td_01_23, td_02_23, td_03_23, td_12_22)
+q_2 <- rbind(td_04_23,td_05_23, td_06_23)
+remove(td_04_23,td_05_23, td_06_23)
+q_3 <- rbind(td_07_23, td_08_23)
+remove(td_07_23, td_08_23)             
+q_4 <- rbind(td_09_23, td_10_23, td_11_23)
+remove(td_09_23, td_10_23, td_11_23)
+
+cyclistic_df <- rbind(q_1, q_2, q_3, q_4)
+remove(q_1, q_2, q_3, q_4)
+
+→ cyclistic_df has 4213267 rows & 9 cols ←
+
+#create a new data frame for new columns
+all_trips <- cyclistic_df
+
+#calculate ride_duration in mins
+
+all_trips$ride_duration <- difftime(cyclistic_df$ended_at, cyclistic_df$started_at, units = "mins")
+all_trips$ride_duration <- round(all_trips$ride_duration, digits = 2)
+
+#create new columns for date, day, year, time, time_hms, hour
+
+all_trips <- all_trips %>%
+  mutate(
+    date = as.Date(started_at),                
+    day = format(started_at, "%d"),            
+    year = format(started_at, "%Y"),           
+    time = format(started_at, "%H:%M:%S"),     
+    time_hms = as_hms(started_at),        #hms is used to represent time in seconds format.
+    hour = hour(time_hms)                       
+  )
+
+
+#create a new column for seasons
+
+all_trips <- all_trips %>%
+  mutate(
+    season = case_when(
+      month %in% c("March", "April", "May") ~ "Spring",
+      month %in% c("June", "July", "August") ~ "Summer",
+      month %in% c("September", "October", "November") ~ "Autumn",
+      month %in% c("December", "January", "February") ~ "Winter"
+    )
+  )
+
+#create columns for time_of_day
+
+all_trips <- all_trips %>%
+  mutate(
+    time_of_day = case_when(
+      hour %in% c("1", "2", "3") ~ "Late Night",
+      hour %in% c("4", "5", "6") ~ "Early Morning",
+      hour %in% c("7", "8", "9") ~ "Morning",
+      hour %in% c("10", "11") ~ "Late Morning",
+      hour %in% c("12", "13", "14") ~ "Afternoon",
+      hour %in% c("15", "16", "17") ~ "Late Afternoon",
+      hour %in% c("18", "19", "20", "21") ~ "Evening",
+      hour %in% c("22", "23", "0") ~ "Night"
+    ) )
+
+# Remove rows with NA values
+all_trips <- na.omit(all_trips) #-131rows
+
+# Remove duplicate rows
+all_trips <- distinct(all_trips) #no duplicates
+
+# Remove rows where ride_length is less than or equal to 0
+all_trips <- all_trips[!(all_trips$ride_duration <= 0), ] #none
+
+# Create a new dataframe for Tableau
+cyclistic_tableau <- all_trips
+
+# Clean the data
+cyclistic_tableau <- cyclistic_tableau %>%  
+  select(-c(start_station_name, end_station_name, time, started_at, ended_at))
+
+#download the file
+fwrite(cyclistic_tableau,"cyclistic_data.csv") #1,048,575 observations & 13 variables.
+ANALYZE
+
+Uploaded the CSV file into Tableau.
+
+1.	Total Rides by User Type = Created a pie chart using Size - Ride ID & Color - Member/Casual, Ride ID > Measure > Count.
+a.	Next I entered 0 two times in rows and hit Enter, it’ll create another pie chart similar to this.
+b.	 Select the 2nd pie chart (SUM(0)) in rows and click on dual-axis.
+c.	The pie charts will be clubbed into one, select the entire view - align center.
+d.	Remove the fields from the 2nd pie chart, remove headers, grid lines etc.
+e.	Resize Pie chart as necessary and transform it into a donut chart by making the 2nd pie smaller than the first, change the color to white.
+f.	Create a calculated field as Total Rides -
+“ STR(ROUND(WINDOW_SUM(COUNTD([Ride Id])) / 1000000, 2)) + 'M' + CHAR(10) + 'Total Rides' ”
+g.	Now place this measure in the 2nd pie to details.
+i.	Adjust the color, font(calibri, B) and size(13).
+h.	Change the 1st pie color using the fields (lightning blue colors).
+i.	Format Legend - ‘Gill Sans MT(B), 10pt’.
+j.	Finally, rename the sheet - “Total Rides by User Type(Trebuchet MS,B)”.
+
+2.	Total Rides by Bike Type = created a stacked bar chart using Color - User Type, C - Bike Type & R - Ride Id.
+a.	Change Ride Id to Measure > Count.
+b.	Hide field column label and header.
+c.	Rename the sheet.
+d.	Double click on rows pane - AVG(0), now drag that measure and add it to Y-axis(measure axis).
+i.	Change mark type to line.
+ii.	Drag Measure names from column pane and add it to Path, remove markers, align and format labels if necessary.
+iii.	Increase the size….!
+iv.	Now resize it as desired, remove headers & grid lines.
+e.	Change CNT(Ride Id) measure to percentage using quick table measure, compute using > table.
+f.	Create a new CNT(Ride Id) measure and add annotations and edit it accordingly. Later place it at the tips of the line chart. 
+g.	Add both measures to tooltips and edit it accordingly - “<Rideable Type> was chosen by <User Type> riders for a total of <CNT(Ride Id)> rides, making up <% of Total CNT(Ride Id)> of the total rides.” (Dubai,10)
+h.	Edit Legend and X-axis values(font & color).
+i.	Create a calculated field - Formatted Label using “ IF COUNTD([Ride ID]) >= 1000000 THEN 
+STR(ROUND(COUNTD([Ride ID]) / 1000000, 1)) + 'M'
+ELSE
+  STR(ROUND(COUNTD([Ride ID]) / 1000, 0)) + 'K'
+END” 
+ and place it on the label field(Tableau Semibold,8,B).
+
+3.	Total Rides by Weekday(Casual Users) = Created a Line-Area Chart using C - Day of week, R - CNT(Ride Id), Filter - Casual.
+a.	Assign day of week to columns and Count(Ride ID) to rows, insert Count(Ride Id) again.
+b.	There will be 2 similar charts, activate dual-axis, then turn on axis-synchronization.
+c.	Remove headers & hide filters, keep column & row gridlines.
+d.	Remove column and row divider lines.
+e.	Chart 1 - Area & Chart 2 - Line.
+f.	Increase line chart size.
+g.	Change color - Green(4CAF50), transparency - 70%
+h.	Format axis font and color(Arial,9,B,dark gray)
+i.	 Edit tooltip - “Casual riders took <CNT(Ride Id)> rides on <Day of week> (Dubai,10,B)”.
+j.	Format sheet name & Title
+4.	Same steps for Total Rides by Weekday (Member Users)
+
+5.	Average Ride Duration by User Type = Created a circle chart using Size = Avg(Ride Duration) & Label, Color = User Type.
+a.	Rename and edit Title & Sheet Name
+b.	Change chart font(Arial,9,B).
+c.	Edit tooltip - “Casual riders have an average ride duration of <AVG(Ride Duration)>”(Dubai,10,B)
+d.	Hide grid lines, headers.
+
+6.	Total Ride Duration by Weekday - Created a bar chart using C - SUM(Ride Duration), R - Day of Week, Label - SUM(Ride Duration),Filter - User Type.
+a.	Rename and edit Title & sheet name.
+b.	Assign Sum(RD) to column & Day of week to rows.
+c.	Add User type to filter.
+d.	Double click on column and type - AVG(0).
+e.	Drag & drop it to X-axis
+f.	Change mark type to line
+g.	Add measure names to path,
+h.	Increase the size of the chart.
+i.	Add SUM(RD) to labels.
+j.	Adjust header values and later remove the header.
+k.	Change chart color, format label size and color.
+i.	Weekday - Yellow
+ii.	Weekend - Blue
+l.	Remove grid lines.
+m.	Change axis font and color.
+n.	Edit Tooltips - “ <Day Of Week> recorded a total of <SUM(Ride Duration)> rides”
+
+7.	Total Rides by Month -  Created a rounded column chart using C - Month, R - CNT(Ride Id), Color - Season
+a.	Rename and edit Title & sheet name.
+b.	Assign Sum(RD) to rows & Day of week to column.
+c.	Add User type to filter.
+d.	Double click on row and type - AVG(0).
+e.	Drag & drop it to Y-axis
+f.	Change mark type to line
+g.	Add measure names to path
+h.	Increase the size of the chart.
+i.	Adjust header and remove it later
+j.	Remove grid lines
+k.	Change axis font and color
+l.	Change chart color, format accordingly.
+i.	Winter - GBlue #4285f4
+ii.	Spring - GYellow #fbbc05
+iii.	Summer - GRed #ea4335
+iv.	Autumn - GGreen #0f9d58
+m.	Edit tooltips - “The winter season of november attributed 34556 rides making up 23% of total rides”
+
+8.	Total Rides by Time of Day - Created a seismogram chart using C - Time of Day, R - Ride Id & Ride ID (Refer below points)
+a.	Place Time of Day in columns.
+b.	Create a new measure - Ride ID {COUNT[Ride Id]}, keep total using to Auto
+c.	Create a new measure - Negative Rides {-[Ride ID]}, keep total using to Auto
+d.	Place both the measures in rows
+e.	Assign = Colour - Time of Day
+f.	Change it into bars by right click
+g.	Remove gridlines, axis lines, headers etc
+h.	Format axis font & color
+i.	Format sheet name & title
+j.	Assign colors to chart(GRBY ^ 2) and assign AGG(Ride ID) to tooltips - ALL.
+k.	Edit too tips - “At 0 hours in the night, there were 7834 rides, making up 12% of the total rides.”
+9.	Apply user type & rideable type filter to all sheets.
+
+
+Started designing background image for dashboards in figma.
+1.	Created 4 separate dashboards for -> Overview - C1, C2 & C3; Weekday Analysis - C4, C5, C6; Monthly Analysis - C7; Daily Hour Analysis - C8.
+2.	Then created a final Dashboard to include all these dashboard with navigation buttons to navigate back to this dashboard for more details.
+3.	Added charts and positioned it correctly( I used floating not tiled)
+4.	When uploading the Figma DB image make sure to set dashboard size accordingly and set it to Fixed Size from Range.
